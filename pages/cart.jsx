@@ -1,59 +1,150 @@
 import styles from "../styles/Cart.module.css";
 import Image from "next/image";
+import axios from "axios";
+import { useRouter } from "next/router";
 import { useDispatch, useSelector } from "react-redux";
+import { useEffect, useState } from "react";
+import {
+  PayPalScriptProvider,
+  PayPalButtons,
+  usePayPalScriptReducer,
+} from "@paypal/react-paypal-js";
+import { reset } from "../redux/cartSlice";
 
 const Cart = () => {
-  const dispatch = useDispatch();
   const cart = useSelector((state) => state.cart);
+  const [open, setOpen] = useState(false);
+  const amount = cart.total;
+  const currency = "USD";
+  const style = { layout: "vertical" };
+  const dispatch = useDispatch();
 
-  console.log(cart);
+  const router = useRouter();
+
+  const createOrder = async (data) => {
+    try {
+      const res = await axios.post("http://localhost:3000/api/orders", data);
+
+      res.status === 200 && router.push("/orders/" + res.data._id);
+      dispatch(reset());
+    } catch (error) {
+      console.log(error);
+    }
+  };
+
+  // Paypal Integration
+  // This values are the props in the UI
+
+  // Custom component to wrap the PayPalButtons and handle currency changes
+  const ButtonWrapper = ({ currency, showSpinner }) => {
+    // usePayPalScriptReducer can be use only inside children of PayPalScriptProviders
+    // This is the main reason to wrap the PayPalButtons in a new component
+    const [{ options, isPending }, dispatch] = usePayPalScriptReducer();
+
+    useEffect(() => {
+      dispatch({
+        type: "resetOptions",
+        value: {
+          ...options,
+          currency: currency,
+        },
+      });
+    }, [currency, showSpinner]);
+
+    return (
+      <>
+        {showSpinner && isPending && <div className="spinner" />}
+        <PayPalButtons
+          style={style}
+          disabled={false}
+          forceReRender={[amount, currency, style]}
+          fundingSource={undefined}
+          createOrder={(data, actions) => {
+            return actions.order
+              .create({
+                purchase_units: [
+                  {
+                    amount: {
+                      currency_code: currency,
+                      value: amount,
+                    },
+                  },
+                ],
+              })
+              .then((orderId) => {
+                // Your code here after create the order
+                return orderId;
+              });
+          }}
+          onApprove={function (data, actions) {
+            return actions.order.capture().then(function (details) {
+              // code for  order payment
+              const shipping = details.purchase_units[0].shipping;
+
+              createOrder({
+                customer: shipping.name.full_name,
+                address: shipping.address.address_line_1,
+                total: cart.total,
+                paymentMethod: 1,
+              });
+            });
+          }}
+        />
+      </>
+    );
+  };
+
   return (
     <div className={styles.container}>
       <div className={styles.left}>
         <table className={styles.table}>
-          <tr className={styles.trTitle}>
-            <th>Product</th>
-            <th>Name</th>
-            <th>Extras</th>
-            <th>Price</th>
-            <th>Quantity</th>
-            <th>Total</th>
-          </tr>
-          {cart.products.map((product) => (
-            <tr className={styles.tr} key={product._id}>
-              <td>
-                <div className={styles.imgContainer}>
-                  <Image
-                    src={product.img}
-                    layout="fill"
-                    objectFit="cover"
-                    alt={product.title}
-                  />
-                </div>
-              </td>
-              <td>
-                <span className={styles.name}>{product.title}</span>
-              </td>
-              <td>
-                <span className={styles.extras}>
-                  {product.extras.map((extra) => (
-                    <span key={extra._id}>{extra.text}, </span>
-                  ))}
-                </span>
-              </td>
-              <td>
-                <span className={styles.price}>${product.price}</span>
-              </td>
-              <td>
-                <span className={styles.quantity}>{product.quantity}</span>
-              </td>
-              <td>
-                <span className={styles.total}>
-                  ${product.price * product.quantity}
-                </span>
-              </td>
+          <tbody>
+            <tr className={styles.trTitle}>
+              <th>Product</th>
+              <th>Name</th>
+              <th>Extras</th>
+              <th>Price</th>
+              <th>Quantity</th>
+              <th>Total</th>
             </tr>
-          ))}
+          </tbody>
+          <tbody>
+            {cart.products.map((product) => (
+              <tr className={styles.tr} key={product._id}>
+                <td>
+                  <div className={styles.imgContainer}>
+                    <Image
+                      src={product.img}
+                      layout="fill"
+                      objectFit="cover"
+                      alt={product.title}
+                    />
+                  </div>
+                </td>
+                <td>
+                  <span className={styles.name}>{product.title}</span>
+                </td>
+                <td>
+                  <span className={styles.extras}>
+                    {product.extras.map((extra) => (
+                      <span key={extra._id}>{extra.text}, </span>
+                    ))}
+                  </span>
+                </td>
+                <td>
+                  <span className={styles.price}>${product.price}</span>
+                </td>
+                <td>
+                  <span className={styles.quantity}>{product.quantity}</span>
+                </td>
+                <td>
+                  <span className={styles.total}>
+                    ${product.price * product.quantity}
+                  </span>
+                </td>
+              </tr>
+            ))}
+          </tbody>
         </table>
       </div>
       <div className={styles.right}>
@@ -68,7 +159,26 @@ const Cart = () => {
           <div className={styles.totalText}>
             <b className={styles.totalTextTitle}>Total:</b>${cart.total}
           </div>
-          <button className={styles.button}>CHECKOUT NOW!</button>
+
+          {open ? (
+            <div className={styles.paymentMethods}>
+              <button className={styles.payButton}>CASH ON DELIVERY</button>
+              <PayPalScriptProvider
+                options={{
+                  "client-id":
+                    "AbiRCfDKiHiVQ4ItieC1zh2rbUlwD5jO4cS2LO27wWgPBzcTCyzbTdgYZ9CPyLKutIEemJseyoMg-ZJW",
+                  components: "buttons",
+                  currency: "USD",
+                }}
+              >
+                <ButtonWrapper currency={currency} showSpinner={false} />
+              </PayPalScriptProvider>
+            </div>
+          ) : (
+            <button onClick={() => setOpen(true)} className={styles.button}>
+              CHECKOUT NOW!
+            </button>
+          )}
         </div>
       </div>
     </div>

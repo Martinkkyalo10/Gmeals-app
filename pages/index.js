@@ -1,4 +1,4 @@
-import Axios from "axios";
+import axios from "axios";
 import Head from "next/head";
 import Image from "next/image";
 import Featured from "../components/Featured";
@@ -20,7 +20,7 @@ export default function Home({ pizzaList }) {
 }
 
 export const getServerSideProps = async () => {
-  const res = await Axios.get("http://localhost:3000/api/products");
+  const res = await axios.get("http://localhost:3000/api/products");
   return {
     props: {
       pizzaList: res.data,
