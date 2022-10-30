@@ -1,0 +1,30 @@
+get http://localhost:3000/api/products
+
+
+
+
+{
+
+"title": "pizza5"
+"img": "/img/pizza.png"
+"desc": "desc1"
+
+"prices":[12, 13, 14]
+
+
+"extraOptions"[{
+"text":"Garlic sauce"
+"price":2
+},
+{
+"text":"Classic Sauce"
+"price":4
+},
+{
+"text":"Garlic Aromos"
+"price":3
+}
+],
+
+
+}
